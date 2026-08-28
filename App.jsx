@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Bot, Zap, TrendingUp, TrendingDown, Clock, Wallet, History, ShieldCheck, Mail, Lock, ArrowRight, Timer, UserPlus, LogOut, User, Cpu, Activity, RefreshCw } from 'lucide-react';
+import { Bot, Zap, TrendingUp, TrendingDown, Clock, Wallet, History, ShieldCheck, Mail, Lock, ArrowRight, Timer, UserPlus, LogOut, User, Cpu, Activity, RefreshCw, ExternalLink } from 'lucide-react';
+
+// ============ CONFIGURAÇÃO ============
+// 👇 COLE AQUI O LINK DA SUA CORRETORA (quando tiver). Ex: https://trade.suacorretora.com/p?ref=SEUCODIGO
+const BROKER_URL = '#';
 
 // ============ LISTA DE ATIVOS ============
 const FOREX = [
@@ -37,7 +41,7 @@ const MARKET_ASSETS = {
   ]
 };
 
-// ============ CADASTRO / LOGIN ============
+// ============ CADASTRO / LOGIN (localStorage) ============
 const USERS_KEY = 'aiTrader_users';
 const SESSION_KEY = 'aiTrader_session';
 
@@ -51,7 +55,7 @@ const getSession = () => {
 const saveSession = (email) => localStorage.setItem(SESSION_KEY, JSON.stringify({ email }));
 const clearSession = () => localStorage.removeItem(SESSION_KEY);
 
-// ============ ANÁLISES E UTILITÁRIOS ============
+// ============ TEXTOS, ANÁLISES E UTILITÁRIOS ============
 const ANALYSIS_MESSAGES = [
   'Identificando padronização Candlestick de reversão de tendência...',
   'Aplicando filtro de ruído nos dados de alta frequência...',
@@ -210,7 +214,7 @@ export default function App() {
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 text-slate-100">
         <div className="w-full max-w-md bg-slate-900 border border-purple-500/30 rounded-2xl p-6 sm:p-8 shadow-2xl">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center p-3 bg-purple-500/10 rounded-xl mb-3">
+            <div className="inline-flex items-center justify-center p-3 bg-purple-500/10 rounded-xl mb-3 shadow-purple-glow">
               <Bot className="w-8 h-8 text-purple-400" />
             </div>
             <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
@@ -308,7 +312,7 @@ export default function App() {
 
       <main className="max-w-5xl mx-auto space-y-6">
         {/* SCANNER NEURAL */}
-        <div className="p-5 border border-purple-500/40 bg-slate-900/90 rounded-2xl shadow-xl">
+        <div className="glass-card p-5 border border-purple-500/40 bg-slate-900/90 rounded-2xl shadow-xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-400">
@@ -363,7 +367,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* TROCAR MERCADO + USUÁRIO */}
+        {/* TOPO: TROCAR MERCADO + USUÁRIO */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex bg-slate-900 border border-slate-800 rounded-lg p-1">
             {Object.keys(MARKET_ASSETS).map((m) => (
@@ -422,6 +426,13 @@ export default function App() {
                 <span className="text-[10px] font-semibold text-slate-400 block mt-0.5">{accuracyStyle.label}</span>
               </div>
             </div>
+
+            <a href={BROKER_URL} target="_blank" rel="noopener noreferrer" className="w-full block">
+              <button className="inline-flex items-center justify-center rounded-xl duration-200 focus:outline-none bg-emerald-500 text-slate-950 hover:bg-emerald-400 px-6 w-full shadow-lg gap-2 text-sm sm:text-base font-extrabold py-4 active:scale-95 transition-transform">
+                <span>Corretora em que as entradas serão feitas</span>
+                <ExternalLink className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+            </a>
 
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 mt-4 border-t border-slate-800/80">
               <div className="flex items-center gap-2 text-xs text-slate-300">
