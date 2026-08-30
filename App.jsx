@@ -2,10 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Bot, Zap, TrendingUp, TrendingDown, Clock, Wallet, History, ShieldCheck, Mail, Lock, ArrowRight, Timer, UserPlus, LogOut, User, Cpu, Activity, RefreshCw } from 'lucide-react';
 
 // ============ SINCRONIZAÇÃO COM O ATIVO ============
-// Ajuste estes dois valores para o app avisar no momento exato em que a vela do ativo zera na sua corretora.
-// ANTICIPATION_SECONDS: quantos segundos antes o app mostra o aviso "Entre agora" (padrão 30).
-// ENTRY_OFFSET_SECONDS: se o app avisa cedo demais (a vela ainda tem 1m+ para zerar), AUMENTE este número.
-//                        Se o app avisa tarde demais, DIMINUA. Comece com 0 e ajuste conforme a sua corretora.
 const ANTICIPATION_SECONDS = 30;
 const ENTRY_OFFSET_SECONDS = 0;
 
@@ -94,14 +90,13 @@ const formatClockSeconds = (date) =>
 function generateSignal(market, category, asset) {
   const accuracy = rand(62, 95);
   const direction = Math.random() < 0.5 ? 'CALL' : 'PUT';
-  const expiry = accuracy >= 85 ? 1 : 5;
   const confs = [...new Set([
     CONFLUENCES[rand(0, CONFLUENCES.length - 1)],
     CONFLUENCES[rand(0, CONFLUENCES.length - 1)],
     CONFLUENCES[rand(0, CONFLUENCES.length - 1)]
   ])].slice(0, 3);
   return {
-    asset, accuracy, direction, expiry, confs,
+    asset, accuracy, direction, confs,
     candles: rand(14000, 19000),
     noise: (99 + (rand(0, 9) / 10)).toFixed(1)
   };
@@ -132,6 +127,7 @@ export default function App() {
   const [category, setCategory] = useState('Cripto');
   const [selectedAsset, setSelectedAsset] = useState(() => MARKET_ASSETS['Mercado Aberto']['Cripto'][0]);
   const [signal, setSignal] = useState(() => generateSignal('Mercado Aberto', 'Cripto', MARKET_ASSETS['Mercado Aberto']['Cripto'][0]));
+  const [expiry, setExpiry] = useState(1); // expiração escolhida pelo usuário (1m ou 5m)
   const [timeLeft, setTimeLeft] = useState(420);
   const [analysisMsg, setAnalysisMsg] = useState(0);
   const [now, setNow] = useState(() => new Date());
@@ -152,7 +148,6 @@ export default function App() {
   const currentAssets = MARKET_ASSETS[market][category];
 
   // ----- Timing sincronizado com a vela do ativo -----
-  // Aplica o offset configurado para alinhar ao momento em que a vela zera na corretora
   const baseTime = new Date(now.getTime() + ENTRY_OFFSET_SECONDS * 1000);
   const nextMinute = new Date(baseTime);
   nextMinute.setSeconds(0, 0);
@@ -185,6 +180,11 @@ export default function App() {
   const handleSelectAsset = (asset) => {
     setSelectedAsset(asset);
     setSignal(generateSignal(market, category, asset));
+    setTimeLeft(420);
+  };
+
+  const handleSelectExpiry = (e) => {
+    setExpiry(e);
     setTimeLeft(420);
   };
 
@@ -346,7 +346,7 @@ export default function App() {
           <span>Sinais {market}</span>
         </div>
         <h1 className="text-2xl sm:text-3xl font-black text-white">AI TRADER — Análise Preditiva do Momento</h1>
-        <p className="text-xs text-slate-400">Escolha a categoria e o ativo. A IA analisa e indica a direção e o melhor momento de entrada.</p>
+        <p className="text-xs text-slate-400">Escolha a categoria, o ativo e a expiração. A IA analisa e indica a direção e o melhor momento de entrada.</p>
       </header>
 
       <main className="max-w-5xl mx-auto space-y-6">
@@ -430,7 +430,7 @@ export default function App() {
           <div className="absolute top-0 left-0 right-0 h-2 bg-rose-500"></div>
 
           <div className="p-5 sm:p-8">
-            {/* CATEGORIA + ATIVO + HORÁRIO */}
+            {/* CATEGORIA + ATIVO + EXPIRAÇÃO + HORÁRIO */}
             <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 pb-5 border-b border-slate-800">
               <div className="flex-1 min-w-0">
                 <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-widest block">Escolha a Categoria</span>
@@ -455,8 +455,19 @@ export default function App() {
                     ))}
                   </select>
                 </div>
+
+                <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-widest block mt-4">Escolha a Expiração</span>
+                <div className="flex bg-slate-950 border border-purple-500/40 rounded-lg p-1 mt-1 w-full sm:w-max">
+                  {[1, 5].map((e) => (
+                    <button key={e} onClick={() => handleSelectExpiry(e)}
+                      className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md text-xs font-semibold transition-colors ${expiry === e ? 'bg-purple-500 text-white' : 'text-slate-400 hover:text-slate-200'}`}>
+                      {e}m
+                    </button>
+                  ))}
+                </div>
+
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <span className="inline-flex items-center rounded-full border bg-purple-500/10 text-purple-400 border-purple-500/30 text-xs px-2.5 py-0.5 font-bold">Expiração {signal.expiry}m</span>
+                  <span className="inline-flex items-center rounded-full border bg-purple-500/10 text-purple-400 border-purple-500/30 text-xs px-2.5 py-0.5 font-bold">Expiração {expiry}m</span>
                   <span className="inline-flex items-center rounded-full border bg-slate-800/60 text-slate-300 border-slate-700 text-xs px-2.5 py-0.5 font-bold">{market} • {category}</span>
                 </div>
               </div>
@@ -492,8 +503,8 @@ export default function App() {
 
             <div className={`flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 mt-4 border-t border-slate-800/80 ${inPrepWindow ? 'bg-emerald-500/5 rounded-xl p-3 -mx-1' : ''}`}>
               <div className="flex items-center gap-2 text-xs text-slate-300">
-                <Clock className="w-4 h-4 text-purple-400 shrink-0" />
-                <span>Tempo da Operação: <strong>{signal.expiry} minutos</strong></span>
+                <Timer className="w-4 h-4 text-purple-400 shrink-0" />
+                <span>Tempo da Operação: <strong>{expiry} minutos</strong></span>
               </div>
               <div className={`w-full sm:w-auto text-center flex items-center justify-center gap-2 px-4 py-2 rounded-xl border ${
                 inPrepWindow
@@ -583,7 +594,7 @@ export default function App() {
 
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-xs text-slate-400">
           <p>
-            Escolha a categoria (Cripto, Forex ou Ações) e depois o ativo. O horário da entrada segue o timing da vela do ativo, com {ANTICIPATION_SECONDS}s de antecedência. Use o ajuste de sincronização no topo do código para alinhar o aviso ao momento exato em que a vela zera na sua corretora.
+            Escolha a categoria (Cripto, Forex ou Ações), o ativo e a expiração (1m ou 5m). O horário da entrada segue o timing da vela do ativo, com {ANTICIPATION_SECONDS}s de antecedência. Use o ajuste de sincronização no topo do código para alinhar o aviso ao momento exato em que a vela zera na sua corretora.
           </p>
         </div>
       </main>
