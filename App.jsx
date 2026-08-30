@@ -82,9 +82,7 @@ const formatClock = (date) =>
 const formatClockSeconds = (date) =>
   date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-function generateSignal(market) {
-  const assets = MARKET_ASSETS[market];
-  const asset = assets[rand(0, assets.length - 1)];
+function generateSignal(market, asset) {
   const accuracy = rand(62, 95);
   const direction = Math.random() < 0.5 ? 'CALL' : 'PUT';
   const expiry = accuracy >= 85 ? 1 : 5;
@@ -122,9 +120,11 @@ export default function App() {
   const [success, setSuccess] = useState('');
 
   const [market, setMarket] = useState('Mercado Aberto');
-  const [signal, setSignal] = useState(() => generateSignal('Mercado Aberto'));
+  const [selectedAsset, setSelectedAsset] = useState(() => MARKET_ASSETS['Mercado Aberto'][0]);
+  const [signal, setSignal] = useState(() => generateSignal('Mercado Aberto', MARKET_ASSETS['Mercado Aberto'][0]));
   const [timeLeft, setTimeLeft] = useState(420);
   const [analysisMsg, setAnalysisMsg] = useState(0);
+  const [now, setNow] = useState(() => new Date());
   const [bankroll, setBankroll] = useState(1000);
   const [riskPercent, setRiskPercent] = useState(2);
   const [history, setHistory] = useState([
@@ -139,15 +139,28 @@ export default function App() {
   const losses = history.filter((h) => h.result === 'LOSS').length;
   const accuracyStyle = accuracyLevel(signal.accuracy);
 
-  const entryClock = () => {
-    const d = new Date();
-    d.setMinutes(d.getMinutes() + signal.expiry);
-    return formatClockSeconds(d);
-  };
+  // ----- Timing da entrada: minuto cheio real + antecipação de 30s -----
+  const nextMinute = new Date(now);
+  nextMinute.setSeconds(0, 0);
+  nextMinute.setMinutes(nextMinute.getMinutes() + 1);
+  const prepTime = new Date(nextMinute.getTime() - 30000); // 30 segundos antes
+  const secondsToEntry = Math.max(0, Math.floor((nextMinute.getTime() - now.getTime()) / 1000));
+  const inPrepWindow = secondsToEntry <= 30;
+
+  const entryClock = () => formatClockSeconds(nextMinute);       // horário real de entrada
+  const prepClock = () => formatClockSeconds(prepTime);          // horário antecipado (30s antes)
 
   const changeMarket = (m) => {
+    const first = MARKET_ASSETS[m][0];
     setMarket(m);
-    setSignal(generateSignal(m));
+    setSelectedAsset(first);
+    setSignal(generateSignal(m, first));
+    setTimeLeft(420);
+  };
+
+  const handleSelectAsset = (asset) => {
+    setSelectedAsset(asset);
+    setSignal(generateSignal(market, asset));
     setTimeLeft(420);
   };
 
@@ -183,6 +196,12 @@ export default function App() {
 
   useEffect(() => {
     if (!isAuthenticated) return;
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
     const timer = setInterval(() => setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0)), 1000);
     return () => clearInterval(timer);
   }, [isAuthenticated]);
@@ -193,6 +212,7 @@ export default function App() {
     return () => clearInterval(timer);
   }, [isAuthenticated]);
 
+  // A cada 7 min: registra o resultado e gera novo sinal para o MESMO ativo escolhido
   useEffect(() => {
     if (!isAuthenticated || timeLeft !== 0) return;
     const result = Math.random() * 100 < signal.accuracy ? 'WIN' : 'LOSS';
@@ -200,9 +220,9 @@ export default function App() {
       { id: Date.now(), time: formatClock(new Date()), asset: signal.asset, type: signal.direction, result },
       ...h
     ].slice(0, 12));
-    setSignal(generateSignal(market));
+    setSignal(generateSignal(market, selectedAsset));
     setTimeLeft(420);
-  }, [timeLeft, isAuthenticated, market, signal]);
+  }, [timeLeft, isAuthenticated, market, selectedAsset, signal]);
 
   // ============ TELA DE LOGIN / CADASTRO ============
   if (!isAuthenticated) {
@@ -302,8 +322,8 @@ export default function App() {
           <Zap className="w-3.5 h-3.5" />
           <span>Sinais {market}</span>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-black text-white">AI TRADER — Análise Preditiva do Momento (7 min)</h1>
-        <p className="text-xs text-slate-400">A IA analisa o mercado e alterna os ativos automaticamente a cada 7 minutos.</p>
+        <h1 className="text-2xl sm:text-3xl font-black text-white">AI TRADER — Análise Preditiva do Momento</h1>
+        <p className="text-xs text-slate-400">Escolha o ativo. A IA analisa e indica a direção e o melhor momento de entrada.</p>
       </header>
 
       <main className="max-w-5xl mx-auto space-y-6">
@@ -388,16 +408,28 @@ export default function App() {
 
           <div className="p-5 sm:p-8">
             <div className="flex flex-row items-center justify-between pb-5 border-b border-slate-800 gap-2">
-              <div>
-                <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-widest block">Ativo Disponível</span>
-                <div className="flex items-center gap-2.5 mt-1">
-                  <span className="text-2xl sm:text-4xl font-black text-white">{signal.asset}</span>
-                  <span className="inline-flex items-center rounded-full border bg-purple-500/10 text-purple-400 border-purple-500/30 text-xs sm:text-sm px-2.5 py-0.5 font-bold">{signal.expiry}m</span>
+              <div className="flex-1 min-w-0">
+                <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-widest block">Escolha o Ativo</span>
+                <div className="mt-1 relative">
+                  <select
+                    value={selectedAsset}
+                    onChange={(e) => handleSelectAsset(e.target.value)}
+                    className="w-full bg-slate-950 border border-purple-500/40 rounded-lg px-3 py-2 text-lg sm:text-xl font-black text-white focus:outline-none focus:border-purple-400"
+                  >
+                    {MARKET_ASSETS[market].map((a) => (
+                      <option key={a} value={a} className="bg-slate-950 text-white">{a}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="inline-flex items-center rounded-full border bg-purple-500/10 text-purple-400 border-purple-500/30 text-xs px-2.5 py-0.5 font-bold">Expiração {signal.expiry}m</span>
+                  <span className="inline-flex items-center rounded-full border bg-slate-800/60 text-slate-300 border-slate-700 text-xs px-2.5 py-0.5 font-bold">{market}</span>
                 </div>
               </div>
-              <div className="text-right bg-slate-800/80 px-3.5 py-2.5 sm:px-5 sm:py-3 rounded-2xl border border-purple-500/40 shadow-lg">
-                <span className="text-[10px] sm:text-[11px] text-slate-300 block font-bold uppercase tracking-wider">Próxima Entrada</span>
-                <span className="text-lg sm:text-xl font-black text-emerald-400 font-mono block mt-0.5">{entryClock()}</span>
+              <div className="text-right bg-slate-800/80 px-3.5 py-2.5 sm:px-5 sm:py-3 rounded-2xl border border-purple-500/40 shadow-lg shrink-0">
+                <span className="text-[10px] sm:text-[11px] text-slate-300 block font-bold uppercase tracking-wider">Prepare-se às (30s antes)</span>
+                <span className="text-lg sm:text-xl font-black text-emerald-400 font-mono block mt-0.5">{prepClock()}</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5">Entrada real: {entryClock()}</span>
               </div>
             </div>
 
@@ -423,14 +455,27 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 mt-4 border-t border-slate-800/80">
+            <div className={`flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 mt-4 border-t border-slate-800/80 ${inPrepWindow ? 'bg-emerald-500/5 rounded-xl p-3 -mx-1' : ''}`}>
               <div className="flex items-center gap-2 text-xs text-slate-300">
                 <Clock className="w-4 h-4 text-purple-400 shrink-0" />
                 <span>Tempo da Operação: <strong>{signal.expiry} minutos</strong></span>
               </div>
-              <div className="w-full sm:w-auto text-center flex items-center justify-center gap-2 bg-slate-800/90 border border-purple-500/30 px-4 py-2 rounded-xl">
-                <span className="text-xs text-slate-400 font-semibold">Próximo Sinal em:</span>
-                <span className="text-base sm:text-lg font-black text-emerald-400 font-mono">{formatTime(timeLeft)}</span>
+              <div className={`w-full sm:w-auto text-center flex items-center justify-center gap-2 px-4 py-2 rounded-xl border ${
+                inPrepWindow
+                  ? 'bg-emerald-500/15 border-emerald-500/50 animate-pulse'
+                  : 'bg-slate-800/90 border-purple-500/30'
+              }`}>
+                {inPrepWindow ? (
+                  <>
+                    <span className="text-xs text-emerald-300 font-black uppercase tracking-wider">⚠️ Janela de entrada — entre agora</span>
+                    <span className="text-base sm:text-lg font-black text-emerald-400 font-mono">{formatTime(secondsToEntry)}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-xs text-slate-400 font-semibold">Entrada real em:</span>
+                    <span className="text-base sm:text-lg font-black text-emerald-400 font-mono">{formatTime(secondsToEntry)}</span>
+                  </>
+                )}
               </div>
             </div>
 
@@ -503,7 +548,7 @@ export default function App() {
 
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-xs text-slate-400">
           <p>
-            O sinal é atualizado automaticamente a cada 7 minutos. A expiração (1m ou 5m) é definida pela assertividade: alta (85% ou mais) indica 1m; abaixo disso, 5m. O cadastro e o histórico são salvos no navegador de cada usuário.
+            Agora você escolhe o ativo na lista — ele não troca sozinho. O horário da entrada segue o timing dos ativos (minuto cheio), mas o app mostra 30 segundos antes para você ter tempo de ir até o ativo na corretora e entrar no momento certo. Quando entrar na janela de 30s, aparece o aviso verde "Entre agora".
           </p>
         </div>
       </main>
