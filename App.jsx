@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Bot, Zap, TrendingUp, TrendingDown, Clock, Wallet, History, ShieldCheck, Mail, Lock, ArrowRight, Timer, UserPlus, LogOut, User, Cpu, Activity, RefreshCw } from 'lucide-react';
 
+// ============ SINCRONIZAÇÃO COM O ATIVO ============
+// Ajuste estes dois valores para o app avisar no momento exato em que a vela do ativo zera na sua corretora.
+// ANTICIPATION_SECONDS: quantos segundos antes o app mostra o aviso "Entre agora" (padrão 30).
+// ENTRY_OFFSET_SECONDS: se o app avisa cedo demais (a vela ainda tem 1m+ para zerar), AUMENTE este número.
+//                        Se o app avisa tarde demais, DIMINUA. Comece com 0 e ajuste conforme a sua corretora.
+const ANTICIPATION_SECONDS = 30;
+const ENTRY_OFFSET_SECONDS = 0;
+
 // ============ LISTA DE ATIVOS POR CATEGORIA ============
 const FOREX = [
   'EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'NZD/USD', 'USD/CAD',
@@ -23,7 +31,6 @@ const STOCKS = [
   'CAT', 'HD', 'LOW', 'COST', 'T', 'VZ', 'CSCO', 'QCOM', 'CRM', 'ADBE'
 ];
 
-// Categorias por mercado
 const CATEGORIES = ['Cripto', 'Forex', 'Ações'];
 
 const MARKET_ASSETS = {
@@ -144,13 +151,15 @@ export default function App() {
 
   const currentAssets = MARKET_ASSETS[market][category];
 
-  // ----- Timing da entrada: minuto cheio real + antecipação de 30s -----
-  const nextMinute = new Date(now);
+  // ----- Timing sincronizado com a vela do ativo -----
+  // Aplica o offset configurado para alinhar ao momento em que a vela zera na corretora
+  const baseTime = new Date(now.getTime() + ENTRY_OFFSET_SECONDS * 1000);
+  const nextMinute = new Date(baseTime);
   nextMinute.setSeconds(0, 0);
   nextMinute.setMinutes(nextMinute.getMinutes() + 1);
-  const prepTime = new Date(nextMinute.getTime() - 30000);
-  const secondsToEntry = Math.max(0, Math.floor((nextMinute.getTime() - now.getTime()) / 1000));
-  const inPrepWindow = secondsToEntry <= 30;
+  const prepTime = new Date(nextMinute.getTime() - ANTICIPATION_SECONDS * 1000);
+  const secondsToEntry = Math.max(0, Math.floor((nextMinute.getTime() - baseTime.getTime()) / 1000));
+  const inPrepWindow = secondsToEntry <= ANTICIPATION_SECONDS;
 
   const entryClock = () => formatClockSeconds(nextMinute);
   const prepClock = () => formatClockSeconds(prepTime);
@@ -421,7 +430,7 @@ export default function App() {
           <div className="absolute top-0 left-0 right-0 h-2 bg-rose-500"></div>
 
           <div className="p-5 sm:p-8">
-            {/* CATEGORIA + ATIVO + HORÁRIO (empilhados para não sobrepor) */}
+            {/* CATEGORIA + ATIVO + HORÁRIO */}
             <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 pb-5 border-b border-slate-800">
               <div className="flex-1 min-w-0">
                 <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-widest block">Escolha a Categoria</span>
@@ -453,7 +462,7 @@ export default function App() {
               </div>
 
               <div className="text-right bg-slate-800/80 px-3.5 py-2.5 sm:px-5 sm:py-3 rounded-2xl border border-purple-500/40 shadow-lg shrink-0 w-full md:w-auto">
-                <span className="text-[10px] sm:text-[11px] text-slate-300 block font-bold uppercase tracking-wider">Prepare-se às (30s antes)</span>
+                <span className="text-[10px] sm:text-[11px] text-slate-300 block font-bold uppercase tracking-wider">Prepare-se às ({ANTICIPATION_SECONDS}s antes)</span>
                 <span className="text-lg sm:text-xl font-black text-emerald-400 font-mono block mt-0.5">{prepClock()}</span>
                 <span className="text-[10px] text-slate-500 block mt-0.5">Entrada real: {entryClock()}</span>
               </div>
@@ -574,7 +583,7 @@ export default function App() {
 
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-xs text-slate-400">
           <p>
-            Escolha a categoria (Cripto, Forex ou Ações) e depois o ativo. O horário da entrada segue o timing dos ativos (minuto cheio), mas o app mostra 30 segundos antes para você ter tempo de ir até o ativo na corretora e entrar no momento certo. Quando entrar na janela de 30s, aparece o aviso verde "Entre agora".
+            Escolha a categoria (Cripto, Forex ou Ações) e depois o ativo. O horário da entrada segue o timing da vela do ativo, com {ANTICIPATION_SECONDS}s de antecedência. Use o ajuste de sincronização no topo do código para alinhar o aviso ao momento exato em que a vela zera na sua corretora.
           </p>
         </div>
       </main>
