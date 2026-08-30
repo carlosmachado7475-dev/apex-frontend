@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bot, Zap, TrendingUp, TrendingDown, Clock, Wallet, History, ShieldCheck, Mail, Lock, ArrowRight, Timer, UserPlus, LogOut, User, Cpu, Activity, RefreshCw } from 'lucide-react';
 
-// ============ LISTA DE ATIVOS ============
+// ============ LISTA DE ATIVOS POR CATEGORIA ============
 const FOREX = [
   'EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'NZD/USD', 'USD/CAD',
   'EUR/GBP', 'EUR/JPY', 'GBP/JPY', 'EUR/CHF', 'AUD/JPY', 'CAD/JPY', 'CHF/JPY',
@@ -16,10 +16,6 @@ const CRYPTO = [
   'XLM/USD', 'EOS/USD', 'TRX/USD', 'FIL/USD', 'NEAR/USD', 'SHIB/USD'
 ];
 
-const INDICES = ['US30', 'NAS100', 'SPX500', 'GER40', 'UK100', 'JPN225', 'FRA40', 'AUS200', 'EU50', 'ESP35'];
-
-const COMMODITIES = ['XAU/USD', 'XAG/USD', 'XPT/USD', 'XPD/USD', 'WTI', 'BRENT', 'NATGAS', 'COPPER'];
-
 const STOCKS = [
   'AAPL', 'TSLA', 'AMZN', 'GOOGL', 'MSFT', 'NVDA', 'META', 'NFLX', 'AMD', 'INTC',
   'IBM', 'ORCL', 'KO', 'PEP', 'JPM', 'BAC', 'DIS', 'BA', 'V', 'MA', 'PYPL', 'UBER',
@@ -27,14 +23,20 @@ const STOCKS = [
   'CAT', 'HD', 'LOW', 'COST', 'T', 'VZ', 'CSCO', 'QCOM', 'CRM', 'ADBE'
 ];
 
+// Categorias por mercado
+const CATEGORIES = ['Cripto', 'Forex', 'Ações'];
+
 const MARKET_ASSETS = {
-  'Mercado Aberto': [...FOREX, ...CRYPTO, ...INDICES, ...COMMODITIES, ...STOCKS],
-  'OTC': [
-    'EUR/USD OTC', 'GBP/USD OTC', 'USD/JPY OTC', 'USD/CHF OTC', 'AUD/USD OTC',
-    'NZD/USD OTC', 'USD/CAD OTC', 'EUR/GBP OTC', 'EUR/JPY OTC', 'GBP/JPY OTC',
-    'XAU/USD OTC', 'XAG/USD OTC', 'BTC/USD OTC', 'ETH/USD OTC', 'SOL/USD OTC',
-    'DOGE/USD OTC', 'US30 OTC', 'NAS100 OTC', 'SPX500 OTC', 'GER40 OTC'
-  ]
+  'Mercado Aberto': {
+    'Cripto': CRYPTO,
+    'Forex': FOREX,
+    'Ações': STOCKS
+  },
+  'OTC': {
+    'Cripto': ['BTC/USD OTC', 'ETH/USD OTC', 'SOL/USD OTC', 'DOGE/USD OTC'],
+    'Forex': ['EUR/USD OTC', 'GBP/USD OTC', 'USD/JPY OTC', 'USD/CHF OTC', 'AUD/USD OTC', 'NZD/USD OTC', 'USD/CAD OTC', 'EUR/GBP OTC', 'EUR/JPY OTC', 'GBP/JPY OTC'],
+    'Ações': ['AAPL OTC', 'TSLA OTC', 'NVDA OTC', 'AMZN OTC', 'MSFT OTC', 'GOOGL OTC']
+  }
 };
 
 // ============ CADASTRO / LOGIN ============
@@ -82,7 +84,7 @@ const formatClock = (date) =>
 const formatClockSeconds = (date) =>
   date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-function generateSignal(market, asset) {
+function generateSignal(market, category, asset) {
   const accuracy = rand(62, 95);
   const direction = Math.random() < 0.5 ? 'CALL' : 'PUT';
   const expiry = accuracy >= 85 ? 1 : 5;
@@ -120,8 +122,9 @@ export default function App() {
   const [success, setSuccess] = useState('');
 
   const [market, setMarket] = useState('Mercado Aberto');
-  const [selectedAsset, setSelectedAsset] = useState(() => MARKET_ASSETS['Mercado Aberto'][0]);
-  const [signal, setSignal] = useState(() => generateSignal('Mercado Aberto', MARKET_ASSETS['Mercado Aberto'][0]));
+  const [category, setCategory] = useState('Cripto');
+  const [selectedAsset, setSelectedAsset] = useState(() => MARKET_ASSETS['Mercado Aberto']['Cripto'][0]);
+  const [signal, setSignal] = useState(() => generateSignal('Mercado Aberto', 'Cripto', MARKET_ASSETS['Mercado Aberto']['Cripto'][0]));
   const [timeLeft, setTimeLeft] = useState(420);
   const [analysisMsg, setAnalysisMsg] = useState(0);
   const [now, setNow] = useState(() => new Date());
@@ -139,28 +142,40 @@ export default function App() {
   const losses = history.filter((h) => h.result === 'LOSS').length;
   const accuracyStyle = accuracyLevel(signal.accuracy);
 
+  const currentAssets = MARKET_ASSETS[market][category];
+
   // ----- Timing da entrada: minuto cheio real + antecipação de 30s -----
   const nextMinute = new Date(now);
   nextMinute.setSeconds(0, 0);
   nextMinute.setMinutes(nextMinute.getMinutes() + 1);
-  const prepTime = new Date(nextMinute.getTime() - 30000); // 30 segundos antes
+  const prepTime = new Date(nextMinute.getTime() - 30000);
   const secondsToEntry = Math.max(0, Math.floor((nextMinute.getTime() - now.getTime()) / 1000));
   const inPrepWindow = secondsToEntry <= 30;
 
-  const entryClock = () => formatClockSeconds(nextMinute);       // horário real de entrada
-  const prepClock = () => formatClockSeconds(prepTime);          // horário antecipado (30s antes)
+  const entryClock = () => formatClockSeconds(nextMinute);
+  const prepClock = () => formatClockSeconds(prepTime);
 
   const changeMarket = (m) => {
-    const first = MARKET_ASSETS[m][0];
+    const firstCat = 'Cripto';
+    const first = MARKET_ASSETS[m][firstCat][0];
     setMarket(m);
+    setCategory(firstCat);
     setSelectedAsset(first);
-    setSignal(generateSignal(m, first));
+    setSignal(generateSignal(m, firstCat, first));
+    setTimeLeft(420);
+  };
+
+  const changeCategory = (cat) => {
+    const first = MARKET_ASSETS[market][cat][0];
+    setCategory(cat);
+    setSelectedAsset(first);
+    setSignal(generateSignal(market, cat, first));
     setTimeLeft(420);
   };
 
   const handleSelectAsset = (asset) => {
     setSelectedAsset(asset);
-    setSignal(generateSignal(market, asset));
+    setSignal(generateSignal(market, category, asset));
     setTimeLeft(420);
   };
 
@@ -212,7 +227,6 @@ export default function App() {
     return () => clearInterval(timer);
   }, [isAuthenticated]);
 
-  // A cada 7 min: registra o resultado e gera novo sinal para o MESMO ativo escolhido
   useEffect(() => {
     if (!isAuthenticated || timeLeft !== 0) return;
     const result = Math.random() * 100 < signal.accuracy ? 'WIN' : 'LOSS';
@@ -220,9 +234,9 @@ export default function App() {
       { id: Date.now(), time: formatClock(new Date()), asset: signal.asset, type: signal.direction, result },
       ...h
     ].slice(0, 12));
-    setSignal(generateSignal(market, selectedAsset));
+    setSignal(generateSignal(market, category, selectedAsset));
     setTimeLeft(420);
-  }, [timeLeft, isAuthenticated, market, selectedAsset, signal]);
+  }, [timeLeft, isAuthenticated, market, category, selectedAsset, signal]);
 
   // ============ TELA DE LOGIN / CADASTRO ============
   if (!isAuthenticated) {
@@ -323,7 +337,7 @@ export default function App() {
           <span>Sinais {market}</span>
         </div>
         <h1 className="text-2xl sm:text-3xl font-black text-white">AI TRADER — Análise Preditiva do Momento</h1>
-        <p className="text-xs text-slate-400">Escolha o ativo. A IA analisa e indica a direção e o melhor momento de entrada.</p>
+        <p className="text-xs text-slate-400">Escolha a categoria e o ativo. A IA analisa e indica a direção e o melhor momento de entrada.</p>
       </header>
 
       <main className="max-w-5xl mx-auto space-y-6">
@@ -407,26 +421,38 @@ export default function App() {
           <div className="absolute top-0 left-0 right-0 h-2 bg-rose-500"></div>
 
           <div className="p-5 sm:p-8">
-            <div className="flex flex-row items-center justify-between pb-5 border-b border-slate-800 gap-2">
+            {/* CATEGORIA + ATIVO + HORÁRIO (empilhados para não sobrepor) */}
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 pb-5 border-b border-slate-800">
               <div className="flex-1 min-w-0">
-                <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-widest block">Escolha o Ativo</span>
+                <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-widest block">Escolha a Categoria</span>
+                <div className="flex bg-slate-950 border border-purple-500/40 rounded-lg p-1 mt-1 w-full sm:w-max">
+                  {CATEGORIES.map((c) => (
+                    <button key={c} onClick={() => changeCategory(c)}
+                      className={`flex-1 sm:flex-none px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${category === c ? 'bg-purple-500 text-white' : 'text-slate-400 hover:text-slate-200'}`}>
+                      {c}
+                    </button>
+                  ))}
+                </div>
+
+                <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-widest block mt-4">Escolha o Ativo ({category})</span>
                 <div className="mt-1 relative">
                   <select
                     value={selectedAsset}
                     onChange={(e) => handleSelectAsset(e.target.value)}
                     className="w-full bg-slate-950 border border-purple-500/40 rounded-lg px-3 py-2 text-lg sm:text-xl font-black text-white focus:outline-none focus:border-purple-400"
                   >
-                    {MARKET_ASSETS[market].map((a) => (
+                    {currentAssets.map((a) => (
                       <option key={a} value={a} className="bg-slate-950 text-white">{a}</option>
                     ))}
                   </select>
                 </div>
-                <div className="flex items-center gap-2 mt-2">
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
                   <span className="inline-flex items-center rounded-full border bg-purple-500/10 text-purple-400 border-purple-500/30 text-xs px-2.5 py-0.5 font-bold">Expiração {signal.expiry}m</span>
-                  <span className="inline-flex items-center rounded-full border bg-slate-800/60 text-slate-300 border-slate-700 text-xs px-2.5 py-0.5 font-bold">{market}</span>
+                  <span className="inline-flex items-center rounded-full border bg-slate-800/60 text-slate-300 border-slate-700 text-xs px-2.5 py-0.5 font-bold">{market} • {category}</span>
                 </div>
               </div>
-              <div className="text-right bg-slate-800/80 px-3.5 py-2.5 sm:px-5 sm:py-3 rounded-2xl border border-purple-500/40 shadow-lg shrink-0">
+
+              <div className="text-right bg-slate-800/80 px-3.5 py-2.5 sm:px-5 sm:py-3 rounded-2xl border border-purple-500/40 shadow-lg shrink-0 w-full md:w-auto">
                 <span className="text-[10px] sm:text-[11px] text-slate-300 block font-bold uppercase tracking-wider">Prepare-se às (30s antes)</span>
                 <span className="text-lg sm:text-xl font-black text-emerald-400 font-mono block mt-0.5">{prepClock()}</span>
                 <span className="text-[10px] text-slate-500 block mt-0.5">Entrada real: {entryClock()}</span>
@@ -548,7 +574,7 @@ export default function App() {
 
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-xs text-slate-400">
           <p>
-            Agora você escolhe o ativo na lista — ele não troca sozinho. O horário da entrada segue o timing dos ativos (minuto cheio), mas o app mostra 30 segundos antes para você ter tempo de ir até o ativo na corretora e entrar no momento certo. Quando entrar na janela de 30s, aparece o aviso verde "Entre agora".
+            Escolha a categoria (Cripto, Forex ou Ações) e depois o ativo. O horário da entrada segue o timing dos ativos (minuto cheio), mas o app mostra 30 segundos antes para você ter tempo de ir até o ativo na corretora e entrar no momento certo. Quando entrar na janela de 30s, aparece o aviso verde "Entre agora".
           </p>
         </div>
       </main>
